@@ -16,10 +16,12 @@ const {
 const { joinVoiceChannel } = require('@discordjs/voice');
 const mongoose = require('mongoose');
 
-// MongoDB Bağlantısı
-mongoose.connect(process.env.MONGO_URL)
+// Render'daki MONGO_URI'yi okur, yoksa tırnak içindeki adresi kullanır
+const mongo_url = process.env.MONGO_URI || "mongodb+srv://arvex69_db_user:CEqAnPOXmABiTh8S@cluster0.sk7nq2n.mongodb.net/?appName=Cluster0";
+
+mongoose.connect(mongo_url)
     .then(() => console.log("✅ MongoDB Bağlantısı Başarılı!"))
-    .catch(err => console.error("❌ MongoDB Bağlantı Hatası:", err));
+    .catch(err => console.log("❌ MongoDB Bağlantı Hatası: ", err));
 
 // ==========================================
 // 1. MONGODB MODELLERİ (ŞEMALAR)
@@ -821,6 +823,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
