@@ -1,7 +1,7 @@
 {
   "name": "discord-ceza-sistemi",
   "version": "1.0.0",
-  "description": "Discord.js v14 gelişmiş ceza, sicil ve evlilik sistemi",
+  "description": "Discord.js v14 gelismis ceza, sicil ve rozet sistemi",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -9,11 +9,12 @@
     "dev": "node index.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   },
   "dependencies": {
     "discord.js": "^14.15.3",
     "@discordjs/voice": "^0.16.1",
+    "mongoose": "^8.1.0",
     "express": "^4.19.2"
   }
 }
