@@ -897,9 +897,10 @@ const port = 3100;//buraya karışmayın.
 
 app.get('/', (req, res) => res.send('we discord'));//değiştirebilirsiniz.
 
-app.listen(port, () =>
-console.log(`Bot bu adres üzerinde çalışıyor: http://localhost:${port}`)//port
-);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Bot bu adres üzerinde çalışıyor: ${PORT}`);
+});
 
 // --- BOTU LOGIN ET ---
 client.login(process.env.TOKEN).catch(e => {
@@ -922,6 +923,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
