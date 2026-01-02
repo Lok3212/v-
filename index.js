@@ -659,7 +659,7 @@ client.on("messageCreate", async message => {
     if (cmd === "evlen") {
         const target = message.mentions.members.first();
         if (!target) return message.reply("❌ Kimi alıyorsun?");
-        if (evliUsers.has(message.author.id) || evliUsers.has(target.id)) return message.reply("❌ Kullanıcı Zaten Evli");
+        if (evliUsers.has(message.author.id) || evliUsers.has(target.id)) return message.reply("❌ Kullanıcı Zaten Evli.");
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId("evet").setLabel("Evet").setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId("hayır").setLabel("Hayır").setStyle(ButtonStyle.Danger)
@@ -962,4 +962,5 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
