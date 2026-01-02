@@ -372,7 +372,6 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
 
         message.reply(`✅ **${target.user.tag}** ses susturması kaldırıldı.`);
     }
-});
 
 // [JAIL & UNJAIL]
     if (cmd === "jail") {
@@ -823,6 +822,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
