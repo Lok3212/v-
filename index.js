@@ -90,11 +90,34 @@ const client = new Client({
     ]
 });
 
+// --- GENEL AYARLAR ---
 const prefix = "."; 
-const CEZA_LIMITI = 100;
-const OTO_JAIL_SURESI = "7d";
+const OZEL_SAHIP_ID = "983015347105976390"; // Buraya kendi ID'ni yaz
+const NOT_YETKILISI_ID = "1411088827581337742"; 
+
+// --- CEZA PUANLARI ---
+const CEZA_PUANLARI = {
+    MUTE: 5,    
+    VMUTE: 8,   
+    JAIL: 15,   
+    KICK: 20,   
+    BAN: 40     
+};
+
+const CEZA_LIMITI = 100; // Bu puana ulaşan otomatik jail yer
+const OTO_JAIL_SURESI = "7d"; // 1 Hafta
+
+// --- ROL AYARLARI ---
 const ROLES = {
-    JAIL_ROL: "1411088827556171935",
+    BAN_YETKILI: "1411088827598110852",
+    KICK_YETKILI: "1411088827589595266",
+    MUTE_YETKILI: "1411088827581337740",
+    SICIL_YETKILI: "1411088827581337740",
+    VMUTE_YETKILI: "1411088827581337734",
+    JAIL_YETKILI: "1411088827581337742",
+    SNIPE_ROLLER: ["1411088827581337740", "1449836927170646237"],
+    PUAN_SIL_YETKILI: "1411088827589595258",
+    JAIL_ROL: "1411088827556171935", // Jail'e atılanlara verilecek rol
     MARRIAGE: "1452332706456404051"
 };
 
@@ -103,6 +126,41 @@ let lastDeleted = new Map(); // Snipe hala RAM'de kalabilir (Hız için)
 // ==========================================
 // 3. YARDIMCI FONKSİYONLAR (MONGODB UYUMLU)
 // ==========================================
+
+async function getMember(guild, arg) {
+    if (!arg) return null;
+    const id = arg.replace(/[<@!>]/g, "");
+    return await guild.members.fetch(id).catch(() => null);
+}
+
+function sendLog() {
+    // Log sistemi yoksa bot çökmesin diye boş bırakıldı
+    return;
+}
+
+
+function getUserBadges(member, puan, ihlalSayisi) {
+    const rozetler = [];
+
+    // Puan bazlı rozetler
+    if (puan === 0) rozetler.push("😇 Temiz Sicil");
+    else if (puan < 25) rozetler.push("⚠️ Uyarı Seviyesi");
+    else if (puan < 50) rozetler.push("🟡 Şüpheli");
+    else if (puan < CEZA_LIMITI) rozetler.push("🔴 Riskli");
+    else rozetler.push("💀 Limit Aşımı");
+
+    // İhlal sayısı bazlı
+    if (ihlalSayisi >= 5) rozetler.push("📄 Sabıkalı");
+    if (ihlalSayisi >= 10) rozetler.push("🚨 Kronik");
+
+    // Rol / yetki bazlı
+    if (member.roles.cache.has(ROLES.MARRIAGE)) rozetler.push("💍 Evli");
+    if (member.permissions.has(PermissionsBitField.Flags.Administrator))
+        rozetler.push("👑 Yönetici");
+
+    return rozetler.length ? rozetler.join("\n") : "Yok";
+}
+
 
 function parseDuration(time) {
     const match = time?.match(/^(\d+)(s|m|h|d)$/);
@@ -302,6 +360,8 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
 
         if (!target || !timeInput) return message.reply("❌ Kullanım: `.mute @user 10m Sebep` ");
         const duration = parseDuration(timeInput);
+        if (!duration) return message.reply("❌ Süre hatalı. Örnek: 10m / 1h / 1d");
+
 
         await target.timeout(duration, reason);
         
@@ -333,6 +393,8 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
 
         if (!target || !timeInput) return message.reply("❌ Kullanım: `.vmute @user 10m Sebep` ");
         const duration = parseDuration(timeInput);
+        if (!duration) return message.reply("❌ Süre hatalı. Örnek: 10m / 1h / 1d");
+
 
         // Sesteyse sustur
         if (target.voice.channel) await target.voice.setMute(true).catch(() => {});
@@ -382,6 +444,8 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
         
         if (!target || !timeInput) return message.reply("❌ Kullanım: `.jail @kullanıcı 1h Küfür` ");
         const duration = parseDuration(timeInput);
+        if (!duration) return message.reply("❌ Süre hatalı. Örnek: 10m / 1h / 1d");
+
 
         const savedRoles = target.roles.cache.filter(r => r.id !== message.guild.id && r.id !== ROLES.JAIL_ROL).map(r => r.id);
         
@@ -398,7 +462,7 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
         const newScore = await addIhlal(target.id, "JAIL", message.author.tag, reason, CEZA_PUANLARI.JAIL);
         await addStaffStat(message.author.id, "jail");
 
-        message.reply(`🚨 **${target.user.tag}** jaillendi (${timeInput}). Puan: +${CEZA_PUAN_LARI.JAIL} (Toplam: ${newScore})`);
+        message.reply(`🚨 **${target.user.tag}** jaillendi (${timeInput}). Puan: +${CEZA_PUANLARI.JAIL} (Toplam: ${newScore})`);
         sendLog("JAIL", target.user, message.author, reason, timeInput, CEZA_PUANLARI.JAIL);
     }
 
@@ -457,39 +521,75 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
         message.reply(`✅ **${target.user.tag}** sicili tamamen sıfırlandı.`);
     }
 
-    // [SICIL / BAK] - 1411088827581337740
-    if (cmd === "sicil" || cmd === "bak") {
-        const sicilYetki = member.roles.cache.has("1411088827581337740") || isYonetici || isSahip;
-        if (!sicilYetki) return message.reply("❌ Yetkiniz yok.");
-        const target = await getMember(message.guild, args[0]) || message.member;
+// [SICIL / BAK] - GELİŞMİŞ
+if (cmd === "sicil" || cmd === "bak") {
+    const yetki =
+        member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+        member.roles.cache.has("1411088827581337740") ||
+        isSahip;
 
-        let db = loadData('ihlal_takip.json');
-        let notesDb = loadData('user_notes.json');
-        const guardLog = db[target.id] || { ihlalSayisi: 0, toplamPuan: 0, gecmis: [] };
-        const notlar = notesDb[target.id] || [];
-        const puan = guardLog.toplamPuan || 0;
+    if (!yetki) return message.reply("❌ Yetkin yok.");
 
-        const percentage = Math.min((puan / CEZA_LIMITI) * 10, 10);
-        const progressBar = "🟥".repeat(Math.floor(percentage)) + "⬜".repeat(10 - Math.floor(percentage));
+    const target = await getMember(message.guild, args[0]) || message.member;
 
-        const sicilEmbed = new EmbedBuilder()
-            .setAuthor({ name: `${target.user.tag} - Sicil Kaydı`, iconURL: target.user.displayAvatarURL() })
-            .setColor(puan >= 50 ? "Red" : "Green")
-            .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-            .addFields(
-                { name: "⚖️ Ceza Puanı", value: `${progressBar} **${puan} / ${CEZA_LIMITI}**`, inline: false },
-                { name: "🛡️ İhlal Sayısı", value: `Toplam **${guardLog.ihlalSayisi}** ceza.`, inline: true },
-                { name: "📝 Notlar", value: `**${notlar.length}** yetkili notu.`, inline: true }
-            );
+    const data = await Ihlal.findOne({ userID: target.id }) || {
+        toplamPuan: 0,
+        ihlalSayisi: 0,
+        gecmis: []
+    };
 
-        const btnRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`btn_not_ekle_${target.id}`).setLabel("📝 Not Ekle").setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId(`btn_not_oku_${target.id}`).setLabel("📂 Notlar").setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId(`btn_not_sil_${target.id}`).setLabel("🗑️ Not Sil").setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId(`btn_kapat`).setLabel("✖️ Kapat").setStyle(ButtonStyle.Secondary)
-        );
-        await message.reply({ embeds: [sicilEmbed], components: [btnRow] });
+    const puan = data.toplamPuan || 0;
+    const ihlalSayisi = data.ihlalSayisi || 0;
+
+    const rozetler = getUserBadges(target, puan, ihlalSayisi);
+
+    // Progress bar
+    const barCount = Math.min(Math.floor((puan / CEZA_LIMITI) * 10), 10);
+    const progressBar = "🟥".repeat(barCount) + "⬜".repeat(10 - barCount);
+
+    // Son 3 ceza
+    let sonCezalar = "📭 Kayıt yok.";
+    if (data.gecmis && data.gecmis.length > 0) {
+        const son3 = data.gecmis.slice(-3).reverse();
+        sonCezalar = son3.map((c, i) =>
+            `**${i + 1}. ${c.tip}** | +${c.puan}  
+👮 ${c.yetkili}  
+📄 ${c.sebep}  
+🕒 <t:${c.tarih}:R>`
+        ).join("\n\n");
     }
+
+    const embed = new EmbedBuilder()
+        .setAuthor({
+            name: `${target.user.tag} - Gelişmiş Sicil`,
+            iconURL: target.user.displayAvatarURL()
+        })
+        .setColor(puan >= 50 ? "Red" : "Green")
+        .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
+        .addFields(
+            {
+                name: "⚖️ Ceza Puanı",
+                value: `${progressBar}\n**${puan} / ${CEZA_LIMITI}**`
+            },
+            {
+                name: "📄 İhlal Bilgisi",
+                value: `Toplam **${ihlalSayisi}** ihlal`
+            },
+            {
+                name: "🏷️ Rozetler",
+                value: rozetler
+            },
+            {
+                name: "🕒 Son Cezalar (3)",
+                value: sonCezalar
+            }
+        )
+        .setFooter({ text: "Gelişmiş Sicil Sistemi • MongoDB" })
+        .setTimestamp();
+
+    message.reply({ embeds: [embed] });
+}
+
 
     // [SIL / TEMIZLE]
     if (cmd === "sil" || cmd === "temizle") {
@@ -822,6 +922,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
