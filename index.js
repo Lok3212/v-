@@ -217,8 +217,10 @@ client.on("messageDelete", message => {
     });
 });
 
-client.on("messageCreate", async message => {
-    if (!message.guild || message.author.bot || !message.content.startsWith(prefix)) return;
+client.on("messageCreate", async message => { // <--- async burada olmalı
+    // ... komut kodların ...
+    const target = await getMember(message.guild, args[0]); // Artık hata vermez
+});
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const cmd = args.shift()?.toLowerCase();
@@ -818,6 +820,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
