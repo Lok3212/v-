@@ -323,7 +323,7 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
             if (!ban) return message.reply("⚠️ Bu kullanıcı zaten yasaklı değil.");
 
             await message.guild.members.unban(userId, `Yetkili: ${message.author.tag}`);
-            message.reply(`✅ **${ban.user.tag}** yasağı kaldırıldı.`);
+            message.reply(`✅ **${ban.user.tag}** Kullanıcının yasağı kaldırıldı.`);
         } catch (e) {
             message.reply("❌ Kullanıcı bulunamadı veya hata oluştu.");
         }
@@ -922,6 +922,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
