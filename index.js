@@ -172,38 +172,41 @@ async function checkAutoJail(message, targetMember, currentScore) {
 // 4. EVENTLER VE DÖNGÜLER
 // ==========================================
 
-client.once("ready", () => {
-    console.log(`✅ ${client.user.tag} ONLINE! MongoDB entegrasyonu tamamlandı.`);
-    
-// Ready event'indeki setInterval içine ekle:
-setInterval(async () => {
-    const now = Date.now();
-    
-    // VMute Kontrol
-    const expiredVmutes = await ActiveVMute.find({ endTime: { $lte: now } });
-    for (const mute of expiredVmutes) {
-        const guild = client.guilds.cache.get(mute.guildID);
-        if (guild) {
-            const member = await guild.members.fetch(mute.userID).catch(() => null);
-            if (member && member.voice.channel) await member.voice.setMute(false).catch(() => {});
-        }
-        await ActiveVMute.deleteOne({ _id: mute._id });
-    }
-}, 30000); // 30 saniyede bir kontrol
-    
-    // Unjail Kontrol Döngüsü (Mongo tabanlı)
-    setInterval(async () => {
-        const now = Date.now();
-        const expiredJails = await ActiveJail.find({ endTime: { $lte: now } });
+client.on("ready", async () => { // <--- Buradaki 'async' kelimesi hayati önem taşır
+    console.log(`${client.user.tag} olarak giriş yapıldı!`);
 
-        for (const jail of expiredJails) {
-            const guild = client.guilds.cache.get(jail.guildID);
-            if (guild) {
-                const member = await guild.members.fetch(jail.userID).catch(() => null);
-                if (member) await member.roles.set(jail.savedRoles).catch(() => {});
+    // MongoDB süresi dolan cezaları kontrol eden döngü
+    setInterval(async () => { // <--- setInterval içindeki fonksiyon da 'async' olmalı
+        const now = Date.now();
+
+        try {
+            // 1. Süresi dolan Jail'leri bul ve aç
+            const expiredJails = await ActiveJail.find({ endTime: { $lte: now } });
+            for (const jail of expiredJails) {
+                const guild = client.guilds.cache.get(jail.guildID);
+                if (guild) {
+                    const member = await guild.members.fetch(jail.userID).catch(() => null);
+                    if (member) {
+                        await member.roles.set(jail.savedRoles).catch(() => {});
+                    }
+                }
+                await ActiveJail.deleteOne({ _id: jail._id });
             }
-            await ActiveJail.deleteOne({ _id: jail._id });
-            console.log(`🔓 Jail Süresi Doldu: ${jail.userID}`);
+
+            // 2. Süresi dolan VMute'ları bul ve aç
+            const expiredVmutes = await ActiveVMute.find({ endTime: { $lte: now } });
+            for (const mute of expiredVmutes) {
+                const guild = client.guilds.cache.get(mute.guildID);
+                if (guild) {
+                    const member = await guild.members.fetch(mute.userID).catch(() => null);
+                    if (member && member.voice.channel) {
+                        await member.voice.setMute(false).catch(() => {});
+                    }
+                }
+                await ActiveVMute.deleteOne({ _id: mute._id });
+            }
+        } catch (err) {
+            console.error("Zamanlayıcı hatası:", err);
         }
     }, 30000); // 30 saniyede bir kontrol eder
 });
@@ -217,10 +220,8 @@ client.on("messageDelete", message => {
     });
 });
 
-client.on("messageCreate", async message => { // <--- async burada olmalı
-    // ... komut kodların ...
-    const target = await getMember(message.guild, args[0]); // Artık hata vermez
-});
+client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
+    if (!message.guild || message.author.bot || !message.content.startsWith(prefix)) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const cmd = args.shift()?.toLowerCase();
@@ -820,6 +821,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
