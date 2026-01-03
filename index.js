@@ -12,83 +12,8 @@ const {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
 } = require("discord.js");
-
-const { Client, GatewayIntentBits } = require("discord.js");
-const { 
-    joinVoiceChannel, 
-    createAudioPlayer, 
-    createAudioResource, 
-    AudioPlayerStatus, 
-    NoSubscriberBehavior, 
-    StreamType 
-} = require("@discordjs/voice");
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
-
-// Map ile her sunucuya bir player
+// Sunucu başına ayrı player saklamak için
 const players = new Map();
-
-client.on("ready", () => {
-    console.log(`Bot giriş yaptı: ${client.user.tag}`);
-});
-
-client.on("messageCreate", async (message) => {
-    if (message.author.bot) return;
-
-    const args = message.content.split(" ");
-    const command = args.shift().toLowerCase();
-
-    if (command === "!çal") {
-        const url = args[0];
-        if (!url) return message.reply("❌ MP3 URL girmen gerekiyor!");
-
-        const channel = message.member.voice.channel;
-        if (!channel) return message.reply("❌ Ses kanalında değilsin.");
-
-        try {
-            const resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
-
-            let player = players.get(message.guild.id);
-            if (!player) {
-                player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
-                player.on("error", error => {
-                    console.error(`Audio player hatası: ${error.message}`);
-                    message.channel.send("❌ Müzik oynatılırken bir hata oluştu.");
-                });
-                players.set(message.guild.id, player);
-            }
-
-            const connection = joinVoiceChannel({
-                channelId: channel.id,
-                guildId: message.guild.id,
-                adapterCreator: channel.guild.voiceAdapterCreator,
-                selfDeaf: true
-            });
-
-            connection.subscribe(player);
-            player.play(resource);
-
-            player.once(AudioPlayerStatus.Idle, () => {
-                connection.destroy();
-                players.delete(message.guild.id);
-            });
-
-            message.reply("🎶 Müzik çalmaya başladı!");
-        } catch (err) {
-            console.error(err);
-            message.reply("❌ Müzik çalma hatası.");
-        }
-    }
-
-    if (command === "!dur") {
-        const player = players.get(message.guild.id);
-        if (!player) return message.reply("❌ Çalan müzik yok.");
-        player.stop();
-        players.delete(message.guild.id);
-        message.reply("⏹️ Müzik durduruldu.");
-    }
-
-
 const mongoose = require('mongoose');
 
 // Render'daki MONGO_URI'yi okur, yoksa tırnak içindeki adresi kullanır
@@ -1113,6 +1038,55 @@ if (cmd === "sicil" || cmd === "bak") {
 
         message.channel.send({ embeds: [helpEmb] });
     }
+    if (command === "!çal") {
+    const url = args[0];
+    if (!url) return message.reply("❌ Bir MP3 URL girmen gerekiyor!");
+
+    const channel = message.member.voice.channel;
+    if (!channel) return message.reply("❌ Ses kanalında değilsin.");
+
+    try {
+        const resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
+
+        let player = players.get(message.guild.id);
+        if (!player) {
+            player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+            player.on("error", err => {
+                console.error("Audio player hatası:", err.message);
+                message.channel.send("❌ Müzik oynatılırken hata oluştu.");
+            });
+            players.set(message.guild.id, player);
+        }
+
+        const connection = joinVoiceChannel({
+            channelId: channel.id,
+            guildId: message.guild.id,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+            selfDeaf: true
+        });
+
+        connection.subscribe(player);
+        player.play(resource);
+
+        player.once(AudioPlayerStatus.Idle, () => {
+            connection.destroy();
+            players.delete(message.guild.id);
+        });
+
+        message.reply("🎶 Müzik çalmaya başladı!");
+    } catch (err) {
+        console.error(err);
+        message.reply("❌ Müzik çalma hatası.");
+    }
+}
+if (command === "!dur") {
+    const player = players.get(message.guild.id);
+    if (!player) return message.reply("❌ Çalan müzik yok.");
+    player.stop();
+    players.delete(message.guild.id);
+    message.reply("⏹️ Müzik durduruldu.");
+}
+
 });
 
 
@@ -1341,6 +1315,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
