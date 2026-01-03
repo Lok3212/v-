@@ -13,6 +13,7 @@ const {
     StringSelectMenuOptionBuilder,
 } = require("discord.js");
 const { joinVoiceChannel } = require('@discordjs/voice');
+const { playMusic, stopMusic } = require("./music");
 const mongoose = require('mongoose');
 
 // Render'daki MONGO_URI'yi okur, yoksa tırnak içindeki adresi kullanır
@@ -1039,14 +1040,16 @@ if (cmd === "sicil" || cmd === "bak") {
     }
 
     // DİĞER KOMUTLAR (EVLEN, BOŞAN, SİL, KATIL, SICILTEMIZLE) DEĞİŞMEDEN DEVAM EDER...
-    // [KATIL]
-    if (cmd === "katıl") {
-        if (!isYonetici && !isSahip) return message.reply("❌ Sadece yönetici.");
-        const channel = message.member.voice.channel;
-        if (!channel) return;
-        joinVoiceChannel({ channelId: channel.id, guildId: channel.guild.id, adapterCreator: channel.guild.voiceAdapterCreator });
-        message.reply("🔊 Bağlandım.");
-    }
+// MÜZİK ÇAL
+    if (cmd === "çal") {
+    const url = args[0];
+    if (!url) return message.reply("❌ Link gir.");
+    await playMusic(message, url);
+}
+
+if (cmd === "dur") {
+    stopMusic(message);
+}
 });
 
 
@@ -1274,6 +1277,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
