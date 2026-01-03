@@ -1,7 +1,7 @@
 {
   "name": "discord-ceza-sistemi",
   "version": "1.0.0",
-  "description": "Discord.js v14 gelismis ceza, sicil ve rozet sistemi",
+  "description": "Discord.js v14 gelişmiş ceza, sicil ve rozet sistemi",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -9,7 +9,7 @@
     "dev": "node index.js"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "discord.js": "^14.15.3",
