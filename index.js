@@ -33,6 +33,17 @@ const guardSchema = new mongoose.Schema({
     sonIhlal: { type: Date, default: Date.now }
 });
 
+const guardSettingsSchema = new mongoose.Schema({
+    guildId: { type: String, unique: true },
+    kufur: { type: Boolean, default: true },
+    link: { type: Boolean, default: false },
+    spam: { type: Boolean, default: false },
+    yoneticiEngel: { type: Boolean, default: false }
+});
+
+const GuardSettings = mongoose.model("GuardSettings", guardSettingsSchema);
+
+
 guardSchema.index({ guildId: 1, userId: 1 }, { unique: true });
 
 const GuardUser = mongoose.model("GuardUser", guardSchema);
@@ -155,6 +166,13 @@ function filtreleGelismiş(text) {
         .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
         .replace(/(.)\1{2,}/g, '$1')
         .replace(/[^\w\s]/g, "");
+}
+
+
+async function getGuardSettings(guildId) {
+    let data = await GuardSettings.findOne({ guildId });
+    if (!data) data = await GuardSettings.create({ guildId });
+    return data;
 }
 
 
@@ -330,17 +348,17 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
 
 
    // GUARD BÖLÜMÜ
-    const settings = db_settings.get(msg.guild.id) || {
-    kufur: true,
-    link: false,
-    yoneticiEngel: false
-};
+const settings = await getGuardSettings(msg.guild.id);
 
 const isYonetici =
     msg.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
     msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages);
 
-if (!(isYonetici && !settings.yoneticiEngel)) {
+const dokunulmaz = isYonetici && !settings.yoneticiEngel;
+
+if (!dokunulmaz) {
+    // küfür / link / spam kontrollerin
+}
 
     let yasakli = false;
     let sebep = "";
@@ -649,6 +667,45 @@ if (cmd === "siciltemizle") {
 }
 
 
+    if (cmd === "ayar") {
+    if (!isYonetici && !isSahip)
+        return message.reply("❌ Yetkin yok.");
+
+    const c = await getGuardSettings(message.guild.id);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("guard_kufur")
+            .setLabel(`Küfür: ${c.kufur ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.kufur ? ButtonStyle.Success : ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("guard_link")
+            .setLabel(`Link: ${c.link ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.link ? ButtonStyle.Success : ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("guard_spam")
+            .setLabel(`Spam: ${c.spam ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.spam ? ButtonStyle.Success : ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("guard_yonetici")
+            .setLabel(`Yön. Engel: ${c.yoneticiEngel ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.yoneticiEngel ? ButtonStyle.Success : ButtonStyle.Danger)
+    );
+
+    message.reply({
+        embeds: [
+            new EmbedBuilder()
+                .setTitle("🛡️ Guard Ayar Paneli")
+                .setColor("Blurple")
+        ],
+        components: [row]
+    });
+}
+
+
 if (cmd === "sicil" || cmd === "bak") {
     const yetki =
         member.permissions.has(PermissionsBitField.Flags.Administrator) ||
@@ -930,6 +987,54 @@ if (cmd === "sicil" || cmd === "bak") {
         message.reply("🔊 Bağlandım.");
     }
 });
+// İNTERACTİONCREATE BÖLÜMÜ
+client.on("interactionCreate", async interaction => {
+    if (!interaction.isButton()) return;
+    if (!interaction.customId.startsWith("guard_")) return;
+
+    if (!interaction.member.permissions.has(
+        PermissionsBitField.Flags.Administrator
+    )) {
+        return interaction.reply({
+            content: "❌ Yetkin yok.",
+            ephemeral: true
+        });
+    }
+
+    const c = await getGuardSettings(interaction.guildId);
+
+    if (interaction.customId === "guard_kufur") c.kufur = !c.kufur;
+    if (interaction.customId === "guard_link") c.link = !c.link;
+    if (interaction.customId === "guard_spam") c.spam = !c.spam;
+    if (interaction.customId === "guard_yonetici") c.yoneticiEngel = !c.yoneticiEngel;
+
+    await c.save();
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId("guard_kufur")
+            .setLabel(`Küfür: ${c.kufur ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.kufur ? ButtonStyle.Success : ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("guard_link")
+            .setLabel(`Link: ${c.link ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.link ? ButtonStyle.Success : ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("guard_spam")
+            .setLabel(`Spam: ${c.spam ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.spam ? ButtonStyle.Success : ButtonStyle.Danger),
+
+        new ButtonBuilder()
+            .setCustomId("guard_yonetici")
+            .setLabel(`Yön. Engel: ${c.yoneticiEngel ? "AÇIK" : "KAPALI"}`)
+            .setStyle(c.yoneticiEngel ? ButtonStyle.Success : ButtonStyle.Danger)
+    );
+
+    await interaction.update({ components: [row] });
+});
+
 
 // ==========================================
 // 5. ETKİLEŞİM YÖNETİMİ (MONGODB)
@@ -1053,6 +1158,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
