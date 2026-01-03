@@ -197,10 +197,23 @@ function filtreleGelismiş(text) {
 
 
 async function getGuardSettings(guildId) {
-    let data = await GuardSettings.findOne({ guildId });
-    if (!data) data = await GuardSettings.create({ guildId });
-    return data;
+    return await GuardSettings.findOneAndUpdate(
+        { guildId },
+        {
+            $setOnInsert: {
+                kufur: true,
+                link: false,
+                spam: false,
+                yoneticiEngel: false
+            }
+        },
+        {
+            upsert: true,
+            new: true
+        }
+    );
 }
+
 
 
 
@@ -1261,6 +1274,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
