@@ -14,6 +14,14 @@ const {
 } = require("discord.js");
 // Sunucu başına ayrı player saklamak için
 const play = require("play-dl");
+const { 
+    joinVoiceChannel,
+    createAudioPlayer,
+    createAudioResource,
+    AudioPlayerStatus,
+    NoSubscriberBehavior
+} = require('@discordjs/voice');
+const players = new Map();
 const mongoose = require('mongoose');
 
 // Render'daki MONGO_URI'yi okur, yoksa tırnak içindeki adresi kullanır
@@ -1324,6 +1332,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
