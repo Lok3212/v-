@@ -1040,21 +1040,25 @@ if (cmd === "sicil" || cmd === "bak") {
     }
 
     // DİĞER KOMUTLAR (EVLEN, BOŞAN, SİL, KATIL, SICILTEMIZLE) DEĞİŞMEDEN DEVAM EDER...
-const { playMusic, stopMusic } = require("./music.js");
+// [KATIL]
+if (cmd === "katıl") {
+    if (!isYonetici && !isSahip)
+        return message.reply("❌ Sadece yönetici.");
 
-client.on("messageCreate", async (message) => {
-    if (message.author.bot) return;
+    const channel = message.member.voice.channel;
+    if (!channel)
+        return message.reply("❌ Ses kanalında değilsin.");
 
-    const args = message.content.split(" ");
-    const cmd = args.shift().toLowerCase();
+    joinVoiceChannel({
+        channelId: channel.id,
+        guildId: channel.guild.id,
+        adapterCreator: channel.guild.voiceAdapterCreator,
+        selfDeaf: true,
+        selfMute: false
+    });
 
-    if (cmd === ".çal") {
-        await playMusic(message, args[0]);
-    }
-
-    if (cmd === ".dur") {
-        stopMusic(message);
-    }
+    message.reply("🔊 Bağlandım.");
+}
 });
 
 
@@ -1283,6 +1287,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
