@@ -1100,20 +1100,23 @@ if (cmd === "sicil" || cmd === "bak") {
 
     // DİĞER KOMUTLAR (EVLEN, BOŞAN, SİL, KATIL, SICILTEMIZLE) DEĞİŞMEDEN DEVAM EDER...
 // ================= MÜZİK KOMUTLARI =================
-if (!message.content.startsWith(prefix)) return;
-const args = message.content.slice(prefix.length).trim().split(/ +/);
-const cmd = args.shift()?.toLowerCase();
+// [MÜZİK KOMUTLARI] - messageCreate içinde
+if (message.content.startsWith(prefix)) {
+    // args ve cmd zaten tanımlı, tekrar const kullanma
+    // const args = message.content.slice(prefix.length).trim().split(/ +/);
+    // const cmd = args.shift()?.toLowerCase();
 
-if (cmd === "çal") {
-    const url = args[0];
-    if (!url) return message.reply("❌ Lütfen bir YouTube linki gir.");
+    if (cmd === "çal") {
+        const url = args[0];
+        if (!url) return message.reply("❌ Lütfen bir YouTube linki gir.");
+        playMusic(message, url); // Daha önce tanımladığın fonksiyon
+    }
 
-    playMusic(message, url); // senin daha önce tanımladığın playMusic fonksiyonunu kullanıyoruz
+    if (cmd === "dur") {
+        stopMusic(message); // Daha önce tanımladığın fonksiyon
+    }
 }
 
-if (cmd === "dur") {
-    stopMusic(message); // senin daha önce tanımladığın stopMusic fonksiyonunu kullanıyoruz
-}
 
 });
 
@@ -1343,6 +1346,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
