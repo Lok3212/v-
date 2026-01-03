@@ -310,7 +310,7 @@ async function checkAutoJail(message, targetMember, currentScore) {
 // 4. EVENTLER VE DÖNGÜLER
 // ==========================================
 
-client.on("ready", async () => { // <--- Buradaki 'async' kelimesi hayati önem taşır
+client.on("clientReady", async () => { // <--- Buradaki 'async' kelimesi hayati önem taşır
     console.log(`${client.user.tag} olarak giriş yapıldı!`);
 
     // MongoDB süresi dolan cezaları kontrol eden döngü
@@ -1261,6 +1261,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
