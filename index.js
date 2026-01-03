@@ -36,22 +36,19 @@ async function playMusic(message, url) {
         stream = ytdl(url, {
             filter: "audioonly",
             quality: "highestaudio",
-            highWaterMark: 1 << 25, // buffer problemi için
-            dlChunkSize: 0, // chunk problemi çözmek için
+            highWaterMark: 1 << 20, // buffer problemi için azaltıldı
         });
     } catch (err) {
         console.error("❌ YouTube stream hatası:", err);
         return message.reply("❌ Videoya erişilemiyor veya YouTube engelledi.");
     }
 
-    // Stream tipi ekledik
     const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
 
     let player = players.get(message.guild.id);
     if (!player) {
         player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
 
-        // Hataları logla
         player.on("error", error => {
             console.error(`Audio player hatası: ${error.message}`);
             message.channel.send("❌ Müzik oynatılırken bir hata oluştu.");
@@ -64,10 +61,15 @@ async function playMusic(message, url) {
         channelId: channel.id,
         guildId: message.guild.id,
         adapterCreator: channel.guild.voiceAdapterCreator,
-        selfDeaf: true
+        selfDeaf: false // AEAD encryption hatası için false
     });
 
     connection.subscribe(player);
+
+    connection.on("error", (error) => {
+        console.error(`Voice connection hatası: ${error.message}`);
+    });
+
     player.play(resource);
 
     player.once(AudioPlayerStatus.Idle, () => {
@@ -88,6 +90,7 @@ function stopMusic(message) {
 }
 
 module.exports = { playMusic, stopMusic };
+
 
 const mongoose = require('mongoose');
 
@@ -1357,6 +1360,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
