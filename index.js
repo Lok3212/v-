@@ -26,6 +26,18 @@ mongoose.connect(mongo_url)
 // ==========================================
 // 1. MONGODB MODELLERİ (ŞEMALAR)
 // ==========================================
+const guardSchema = new mongoose.Schema({
+    guildId: String,
+    userId: String,
+    ihlalSayisi: { type: Number, default: 0 }, // SINIRSIZ ARTAR
+    sonIhlal: { type: Date, default: Date.now }
+});
+
+guardSchema.index({ guildId: 1, userId: 1 }, { unique: true });
+
+const GuardUser = mongoose.model("GuardUser", guardSchema);
+
+
 
 const UserNote = mongoose.model('UserNote', new mongoose.Schema({
     userID: String,
@@ -127,6 +139,32 @@ let lastDeleted = new Map(); // Snipe hala RAM'de kalabilir (Hız için)
 // 3. YARDIMCI FONKSİYONLAR (MONGODB UYUMLU)
 // ==========================================
 
+function getTimeoutSure(ihlal) {
+    if (ihlal === 3) return 10 * 1000;
+    if (ihlal === 5) return 2 * 60 * 1000;
+    if (ihlal === 8) return 5 * 60 * 1000;
+    if (ihlal >= 10) return 10 * 60 * 1000;
+    return 0;
+}
+
+function filtreleGelismiş(text) {
+    return text.toLowerCase()
+        .replace(/ı/g, 'i').replace(/ü/g, 'u').replace(/ö/g, 'o')
+        .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g')
+        .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+        .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+        .replace(/(.)\1{2,}/g, '$1')
+        .replace(/[^\w\s]/g, "");
+}
+
+
+
+guardSchema.index({ guildId: 1, userId: 1 }, { unique: true });
+
+const GuardUser = mongoose.model("GuardUser", guardSchema);
+
+
+
 async function getMember(guild, arg) {
     if (!arg) return null;
     const id = arg.replace(/[<@!>]/g, "");
@@ -141,6 +179,7 @@ function sendLog() {
 
 function getUserBadges(member, puan, ihlalSayisi) {
     const rozetler = [];
+    
 
     // Puan bazlı rozetler
     if (puan === 0) rozetler.push("😇 Temiz Sicil");
@@ -288,6 +327,73 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
     const member = message.member;
     const isYonetici = member.permissions.has(PermissionsBitField.Flags.Administrator);
     const isSahip = message.author.id === OZEL_SAHIP_ID;
+
+
+   // GUARD BÖLÜMÜ
+    const settings = db_settings.get(msg.guild.id) || {
+    kufur: true,
+    link: false,
+    yoneticiEngel: false
+};
+
+const isYonetici =
+    msg.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+    msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages);
+
+if (!(isYonetici && !settings.yoneticiEngel)) {
+
+    let yasakli = false;
+    let sebep = "";
+
+    if (settings.kufur) {
+        const temiz = filtreleGelismiş(msg.content);
+        if (KUFUR_LISTESI.some(k => temiz.includes(filtreleGelismiş(k)))) {
+            yasakli = true;
+            sebep = "Küfür";
+        }
+    }
+
+    if (yasakli) {
+        await msg.delete().catch(() => {});
+
+        let data = await GuardUser.findOne({
+            guildId: msg.guild.id,
+            userId: msg.author.id
+        });
+
+        if (!data) {
+            data = await GuardUser.create({
+                guildId: msg.guild.id,
+                userId: msg.author.id
+            });
+        }
+
+        // 🔥 SINIRSIZ ARTAR
+        data.ihlalSayisi++;
+        data.sonIhlal = new Date();
+        await data.save();
+
+        // ⏱️ CEZA SADECE 10’A KADAR HESAPLANIR
+        const cezaSure = getTimeoutSure(
+            data.ihlalSayisi > 10 ? 10 : data.ihlalSayisi
+        );
+
+        if (cezaSure > 0) {
+            await msg.member.timeout(
+                cezaSure,
+                `Guard İhlali: ${sebep}`
+            ).catch(() => {});
+        }
+
+        msg.channel.send(
+            `🚫 ${msg.author} | **${sebep}**\n` +
+            `🛡️ Guard İhlali: **${data.ihlalSayisi}**`
+        ).then(m => setTimeout(() => m.delete(), 5000));
+
+        return;
+    }
+}
+
 
     // ==========================================
     // BAN KOMUTU
@@ -511,17 +617,38 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
         message.reply(`✅ **${target.user.tag}** puanı düşürüldü. Yeni Puan: **${data.toplamPuan}**`);
     }
 
-    // [SICIL TEMIZLE]
-    if (cmd === "siciltemizle") {
-        if (!isYonetici && !isSahip) return message.reply("❌ Yetkin yok.");
-        const target = await getMember(message.guild, args[0]);
-        if (!target) return message.reply("❌ Kullanıcı bulunamadı.");
+// [SICIL + GUARD TEMIZLE]
+if (cmd === "siciltemizle") {
+    if (!isYonetici && !isSahip)
+        return message.reply("❌ Yetkin yok.");
 
-        await Ihlal.deleteOne({ userID: target.id });
-        message.reply(`✅ **${target.user.tag}** sicili tamamen sıfırlandı.`);
-    }
+    const target = await getMember(message.guild, args[0]);
+    if (!target)
+        return message.reply("❌ Kullanıcı bulunamadı.");
 
-// [SICIL / BAK] - GELİŞMİŞ
+    // Ceza / Sicil temizle
+    await Ihlal.deleteOne({ userID: target.id });
+
+    // Guard ihlallerini sıfırla
+    await GuardUser.findOneAndUpdate(
+        {
+            guildId: message.guild.id,
+            userId: target.id
+        },
+        {
+            $set: { ihlalSayisi: 0 }
+        },
+        { upsert: true }
+    );
+
+    message.reply(
+        `✅ **${target.user.tag}** kullanıcısının:\n` +
+        `• 📄 Sicil kayıtları temizlendi\n` +
+        `• 🛡️ Guard ihlalleri sıfırlandı`
+    );
+}
+
+
 if (cmd === "sicil" || cmd === "bak") {
     const yetki =
         member.permissions.has(PermissionsBitField.Flags.Administrator) ||
@@ -532,36 +659,40 @@ if (cmd === "sicil" || cmd === "bak") {
 
     const target = await getMember(message.guild, args[0]) || message.member;
 
-    const data = await Ihlal.findOne({ userID: target.id }) || {
+    const cezaData = await Ihlal.findOne({ userID: target.id }) || {
         toplamPuan: 0,
         ihlalSayisi: 0,
         gecmis: []
     };
 
-    const puan = data.toplamPuan || 0;
-    const ihlalSayisi = data.ihlalSayisi || 0;
+    const guardData = await GuardUser.findOne({
+        guildId: message.guild.id,
+        userId: target.id
+    });
 
-    const rozetler = getUserBadges(target, puan, ihlalSayisi);
+    const guardIhlal = guardData?.ihlalSayisi || 0;
+    const puan = cezaData.toplamPuan || 0;
+    const ihlalSayisi = cezaData.ihlalSayisi || 0;
 
-    // Progress bar
     const barCount = Math.min(Math.floor((puan / CEZA_LIMITI) * 10), 10);
     const progressBar = "🟥".repeat(barCount) + "⬜".repeat(10 - barCount);
 
-    // Son 3 ceza
     let sonCezalar = "📭 Kayıt yok.";
-    if (data.gecmis && data.gecmis.length > 0) {
-        const son3 = data.gecmis.slice(-3).reverse();
-        sonCezalar = son3.map((c, i) =>
-            `**${i + 1}. ${c.tip}** | +${c.puan}  
-👮 ${c.yetkili}  
-📄 ${c.sebep}  
+    if (cezaData.gecmis?.length > 0) {
+        sonCezalar = cezaData.gecmis
+            .slice(-3)
+            .reverse()
+            .map((c, i) =>
+                `**${i + 1}. ${c.tip}** | +${c.puan}
+👮 ${c.yetkili}
+📄 ${c.sebep}
 🕒 <t:${c.tarih}:R>`
-        ).join("\n\n");
+            ).join("\n\n");
     }
 
     const embed = new EmbedBuilder()
         .setAuthor({
-            name: `${target.user.tag} - Gelişmiş Sicil`,
+            name: `${target.user.tag} • Sicil`,
             iconURL: target.user.displayAvatarURL()
         })
         .setColor(puan >= 50 ? "Red" : "Green")
@@ -572,24 +703,23 @@ if (cmd === "sicil" || cmd === "bak") {
                 value: `${progressBar}\n**${puan} / ${CEZA_LIMITI}**`
             },
             {
-                name: "📄 İhlal Bilgisi",
-                value: `Toplam **${ihlalSayisi}** ihlal`
+                name: "📄 Ceza İhlalleri",
+                value: `Toplam **${ihlalSayisi}**`
             },
             {
-                name: "🏷️ Rozetler",
-                value: rozetler
+                name: "🛡️ Guard İhlalleri",
+                value: `Toplam **${guardIhlal}**`
             },
             {
-                name: "🕒 Son Cezalar (3)",
+                name: "🕒 Son Cezalar",
                 value: sonCezalar
             }
         )
-        .setFooter({ text: "Gelişmiş Sicil Sistemi • MongoDB" })
+        .setFooter({ text: "Guard + Sicil Sistemi • MongoDB" })
         .setTimestamp();
 
     message.reply({ embeds: [embed] });
 }
-
 
     // [SIL / TEMIZLE]
     if (cmd === "sil" || cmd === "temizle") {
@@ -923,6 +1053,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
