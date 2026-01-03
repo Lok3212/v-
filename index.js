@@ -12,37 +12,35 @@ const {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
 } = require("discord.js");
-const {
-    joinVoiceChannel,
-    createAudioPlayer,
-    createAudioResource,
-    AudioPlayerStatus,
-    NoSubscriberBehavior
-} = require("@discordjs/voice");
 
-const play = require("play-dl");
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
+const ytdl = require("ytdl-core");
 
-const players = new Map(); // guildId -> player
+const players = new Map(); // guildId -> AudioPlayer
 
 async function playMusic(message, url) {
     const channel = message.member.voice.channel;
     if (!channel) return message.reply("❌ Ses kanalında değilsin.");
 
-    if (!play.yt_validate(url))
-        return message.reply("❌ Geçerli bir YouTube linki değil.");
+    if (!ytdl.validateURL(url)) return message.reply("❌ Geçerli bir YouTube linki değil.");
 
-    const stream = await play.stream(url);
-    const resource = createAudioResource(stream.stream, {
-        inputType: stream.type
-    });
+    let stream;
+    try {
+        stream = ytdl(url, {
+            filter: "audioonly",
+            quality: "highestaudio",
+            highWaterMark: 1 << 25, // buffer problemi için
+        });
+    } catch (err) {
+        console.error("❌ YouTube stream hatası:", err);
+        return message.reply("❌ Videoya erişilemiyor veya YouTube engelledi.");
+    }
+
+    const resource = createAudioResource(stream);
 
     let player = players.get(message.guild.id);
     if (!player) {
-        player = createAudioPlayer({
-            behaviors: {
-                noSubscriber: NoSubscriberBehavior.Pause
-            }
-        });
+        player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
         players.set(message.guild.id, player);
     }
 
@@ -72,6 +70,7 @@ function stopMusic(message) {
     players.delete(message.guild.id);
     message.reply("⏹️ Müzik durduruldu.");
 }
+
 
 const mongoose = require('mongoose');
 
@@ -1100,22 +1099,17 @@ if (cmd === "sicil" || cmd === "bak") {
 
     // DİĞER KOMUTLAR (EVLEN, BOŞAN, SİL, KATIL, SICILTEMIZLE) DEĞİŞMEDEN DEVAM EDER...
 // ================= MÜZİK KOMUTLARI =================
-// [MÜZİK KOMUTLARI] - messageCreate içinde
-if (message.content.startsWith(prefix)) {
-    // args ve cmd zaten tanımlı, tekrar const kullanma
-    // const args = message.content.slice(prefix.length).trim().split(/ +/);
-    // const cmd = args.shift()?.toLowerCase();
-
-    if (cmd === "çal") {
-        const url = args[0];
-        if (!url) return message.reply("❌ Lütfen bir YouTube linki gir.");
-        playMusic(message, url); // Daha önce tanımladığın fonksiyon
-    }
-
-    if (cmd === "dur") {
-        stopMusic(message); // Daha önce tanımladığın fonksiyon
-    }
+// ================= MÜZİK KOMUTLARI =================
+if (cmd === "çal") {
+    const url = args[0];
+    if (!url) return message.reply("❌ Lütfen bir YouTube linki gir.");
+    playMusic(message, url); // Daha önce tanımladığın fonksiyon
 }
+
+if (cmd === "dur") {
+    stopMusic(message); // Daha önce tanımladığın fonksiyon
+}
+
 
 
 });
@@ -1346,6 +1340,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
