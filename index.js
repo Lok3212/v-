@@ -366,30 +366,51 @@ client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
     const isSahip = message.author.id === OZEL_SAHIP_ID;
 
 
-   // GUARD BÖLÜMÜ
+// ================= GUARD SİSTEMİ =================
 const settings = await getGuardSettings(msg.guild.id);
 
 const isYonetici =
     msg.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
     msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages);
 
+// yönetici engel kapalıysa adminler muaf
 const dokunulmaz = isYonetici && !settings.yoneticiEngel;
 
 if (!dokunulmaz) {
-    // küfür / link / spam kontrollerin
-}
 
     let yasakli = false;
     let sebep = "";
 
+    // ================= KÜFÜR =================
     if (settings.kufur) {
         const temiz = filtreleGelismiş(msg.content);
-        if (KUFUR_LISTESI.some(k => temiz.includes(filtreleGelismiş(k)))) {
+        if (
+            KUFUR_LISTESI.some(k =>
+                temiz.includes(filtreleGelismiş(k))
+            )
+        ) {
             yasakli = true;
             sebep = "Küfür";
         }
     }
 
+    // ================= LINK =================
+    if (!yasakli && settings.link) {
+        if (/(https?:\/\/|www\.|discord\.gg|discord\.com\/invite)/gi.test(msg.content)) {
+            yasakli = true;
+            sebep = "Reklam / Link";
+        }
+    }
+
+    // ================= SPAM =================
+    if (!yasakli && settings.spam) {
+        if (msg.content.length > 800) {
+            yasakli = true;
+            sebep = "Spam";
+        }
+    }
+
+    // ================= CEZA =================
     if (yasakli) {
         await msg.delete().catch(() => {});
 
@@ -405,14 +426,14 @@ if (!dokunulmaz) {
             });
         }
 
-        // 🔥 SINIRSIZ ARTAR
+        // 🔥 İHLAL SAYISI SINIRSIZ ARTAR
         data.ihlalSayisi++;
         data.sonIhlal = new Date();
         await data.save();
 
-        // ⏱️ CEZA SADECE 10’A KADAR HESAPLANIR
+        // ⏱️ CEZA 10’A KADAR HESAPLANIR
         const cezaSure = getTimeoutSure(
-            data.ihlalSayisi > 10 ? 10 : data.ihlalSayisi
+            data.ihlalSayisi >= 10 ? 10 : data.ihlalSayisi
         );
 
         if (cezaSure > 0) {
@@ -423,9 +444,10 @@ if (!dokunulmaz) {
         }
 
         msg.channel.send(
-            `🚫 ${msg.author} | **${sebep}**\n` +
-            `🛡️ Guard İhlali: **${data.ihlalSayisi}**`
-        ).then(m => setTimeout(() => m.delete(), 5000));
+            `🚫 ${msg.author}\n` +
+            `📌 **Sebep:** ${sebep}\n` +
+            `🛡️ **Toplam Guard İhlali:** ${data.ihlalSayisi}`
+        ).then(m => setTimeout(() => m.delete(), 6000));
 
         return;
     }
@@ -1177,6 +1199,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
