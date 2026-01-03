@@ -13,7 +13,7 @@ const {
     StringSelectMenuOptionBuilder,
 } = require("discord.js");
 // Sunucu başına ayrı player saklamak için
-const players = new Map();
+const play = require("play-dl");
 const mongoose = require('mongoose');
 
 // Render'daki MONGO_URI'yi okur, yoksa tırnak içindeki adresi kullanır
@@ -375,6 +375,7 @@ client.on("messageDelete", message => {
 client.on("messageCreate", async (message) => {
     if (!message.member) return;
     if (!message.guild || message.author.bot) return;
+    
 
     const member = message.member;
 const isAdmin =
@@ -476,6 +477,7 @@ if (!dokunulmaz) {
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const cmd = args.shift()?.toLowerCase();
+    
 
 
     if (cmd === "ban") {
@@ -1038,7 +1040,7 @@ if (cmd === "sicil" || cmd === "bak") {
 
         message.channel.send({ embeds: [helpEmb] });
     }
-    if (command === "!çal") {
+if (command === "!çal") {
     const url = args[0];
     if (!url) return message.reply("❌ Bir MP3 URL girmen gerekiyor!");
 
@@ -1046,8 +1048,13 @@ if (cmd === "sicil" || cmd === "bak") {
     if (!channel) return message.reply("❌ Ses kanalında değilsin.");
 
     try {
-        const resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
+        // play-dl ile stream oluştur
+        const stream = await play.stream(url);
+        const resource = createAudioResource(stream.stream, {
+            inputType: stream.type
+        });
 
+        // Player kontrolü
         let player = players.get(message.guild.id);
         if (!player) {
             player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
@@ -1058,6 +1065,7 @@ if (cmd === "sicil" || cmd === "bak") {
             players.set(message.guild.id, player);
         }
 
+        // Voice kanalına bağlan
         const connection = joinVoiceChannel({
             channelId: channel.id,
             guildId: message.guild.id,
@@ -1079,6 +1087,7 @@ if (cmd === "sicil" || cmd === "bak") {
         message.reply("❌ Müzik çalma hatası.");
     }
 }
+
 if (command === "!dur") {
     const player = players.get(message.guild.id);
     if (!player) return message.reply("❌ Çalan müzik yok.");
@@ -1315,6 +1324,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
