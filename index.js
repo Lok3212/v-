@@ -12,7 +12,6 @@ const {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
 } = require("discord.js");
-const { joinVoiceChannel } = require('@discordjs/voice');
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -1347,6 +1346,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
