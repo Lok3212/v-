@@ -24,15 +24,23 @@ mongoose.connect(mongo_url)
     .catch(err => console.log("❌ MongoDB Bağlantı Hatası: ", err));
 
 // ==========================================
-// 1. MONGODB MODELLERİ (ŞEMALAR)
+// MONGODB MODELLERİ (GUARD + AYAR)
 // ==========================================
+const mongoose = require("mongoose");
+
+/* ---------------- GUARD KULLANICI ---------------- */
 const guardSchema = new mongoose.Schema({
     guildId: String,
     userId: String,
-    ihlalSayisi: { type: Number, default: 0 }, // SINIRSIZ ARTAR
+    ihlalSayisi: { type: Number, default: 0 },
     sonIhlal: { type: Date, default: Date.now }
 });
 
+const GuardUser =
+    mongoose.models.GuardUser ||
+    mongoose.model("GuardUser", guardSchema);
+
+/* ---------------- GUARD AYARLARI ---------------- */
 const guardSettingsSchema = new mongoose.Schema({
     guildId: { type: String, unique: true },
     kufur: { type: Boolean, default: true },
@@ -40,6 +48,17 @@ const guardSettingsSchema = new mongoose.Schema({
     spam: { type: Boolean, default: false },
     yoneticiEngel: { type: Boolean, default: false }
 });
+
+const GuardSettings =
+    mongoose.models.GuardSettings ||
+    mongoose.model("GuardSettings", guardSettingsSchema);
+
+/* ---------------- EXPORT (opsiyonel) ---------------- */
+module.exports = {
+    GuardUser,
+    GuardSettings
+};
+
 
 const GuardSettings = mongoose.model("GuardSettings", guardSettingsSchema);
 
@@ -1158,6 +1177,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
