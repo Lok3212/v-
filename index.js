@@ -11,7 +11,6 @@ const {
     TextInputStyle,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
-    MessageFlags 
 } = require("discord.js");
 const { joinVoiceChannel } = require('@discordjs/voice');
 const mongoose = require('mongoose');
@@ -26,23 +25,26 @@ mongoose.connect(mongo_url)
 // ==========================================
 // MONGODB MODELLERİ (GUARD + AYAR)
 // ==========================================
-const mongoose = require("mongoose");
 
 /* ---------------- GUARD KULLANICI ---------------- */
 const guardSchema = new mongoose.Schema({
-    guildId: String,
-    userId: String,
+    guildId: { type: String, required: true },
+    userId: { type: String, required: true },
     ihlalSayisi: { type: Number, default: 0 },
     sonIhlal: { type: Date, default: Date.now }
 });
+
+// index ŞEMADAN SONRA TANIMLANIR
+guardSchema.index({ guildId: 1, userId: 1 }, { unique: true });
 
 const GuardUser =
     mongoose.models.GuardUser ||
     mongoose.model("GuardUser", guardSchema);
 
+
 /* ---------------- GUARD AYARLARI ---------------- */
 const guardSettingsSchema = new mongoose.Schema({
-    guildId: { type: String, unique: true },
+    guildId: { type: String, unique: true, required: true },
     kufur: { type: Boolean, default: true },
     link: { type: Boolean, default: false },
     spam: { type: Boolean, default: false },
@@ -53,19 +55,7 @@ const GuardSettings =
     mongoose.models.GuardSettings ||
     mongoose.model("GuardSettings", guardSettingsSchema);
 
-/* ---------------- EXPORT (opsiyonel) ---------------- */
-module.exports = {
-    GuardUser,
-    GuardSettings
-};
 
-
-const GuardSettings = mongoose.model("GuardSettings", guardSettingsSchema);
-
-
-guardSchema.index({ guildId: 1, userId: 1 }, { unique: true });
-
-const GuardUser = mongoose.model("GuardUser", guardSchema);
 
 
 
@@ -121,6 +111,24 @@ const Staff = mongoose.model('Staff', new mongoose.Schema({
 // ==========================================
 // 2. AYARLAR
 // ==========================================
+
+const KUFUR_LISTESI = [
+    "amk", "amq", "aq", "amınakoyim", "amkoyim", "amınakoyayım", "amına", "amını", "aminakoyim", "mkk", "mk", "mq",
+    "siktir", "siktiğim", "siktiğimin", "sikerim", "sikiş", "sokuş", "sokarım", "sikik", "sokuk", "sik", "sktr", "siqtir",
+    "orospu", "orospuçocuğu", "oç", "oc", "o.ç", "o.çocuğu", "orospuevladı", "kahpe", "fahişe", "kancık",
+    "yavşak", "yawsak", "yavsak", "gavat", "gawad", "pezevenk", "pzw", "pznk", "godoş", "godos",
+    "piç", "pic", "puşt", "pust", "ibne", "top", "gay", "lez",
+    "yarrak", "yarak", "yarrrak", "yarakos", "taşşak", "dassak", "tassak", "amcık", "amcik", "amcıq", "mcık",
+    "göt", "got", "götveren", "götos", "götlek", "gotlek", "meme", "memeucu", "pipi", "vaji", "penis", "erotik",
+    "dalyarak", "taşşakkafalı", "am feryadı", "am hoşafı", "sik kafalı", "sik kırığı",
+    "şerefsiz", "serefsiz", "it", "köpek", "soysuz", "haysiyetsiz", "karaktersiz",
+    "gerizekalı", "gerizekali", "aptal", "salak", "mal", "beyinsiz", "beyniyok", "özürlü", "ozurlu",
+    "velet", "zargana", "kolsuz", "aptal", "embesil", "dangalak", "lavuk", "gevşek", "gewsek",
+    "atatürk", "atam", "atanı", "atasız", "atana", "atamıza",
+    "dinini", "imanını", "allahını", "kitabını", "peygamberini", "allahsız", "kitapsız",
+    "ebeni", "ceddini", "sülaleni", "aileni", "anasını", "babasını", "bacısını", "karısını",
+    "soyunun", "sopunu", "ırzını", "ahmet ege", "ahmet ege aydemir", "aydemir", "efe serin"
+];
 
 const client = new Client({
     intents: [
@@ -193,12 +201,6 @@ async function getGuardSettings(guildId) {
     if (!data) data = await GuardSettings.create({ guildId });
     return data;
 }
-
-
-
-guardSchema.index({ guildId: 1, userId: 1 }, { unique: true });
-
-const GuardUser = mongoose.model("GuardUser", guardSchema);
 
 
 
@@ -308,7 +310,7 @@ async function checkAutoJail(message, targetMember, currentScore) {
 // 4. EVENTLER VE DÖNGÜLER
 // ==========================================
 
-client.on("clientReady", async () => { // <--- Buradaki 'async' kelimesi hayati önem taşır
+client.on("ready", async () => { // <--- Buradaki 'async' kelimesi hayati önem taşır
     console.log(`${client.user.tag} olarak giriş yapıldı!`);
 
     // MongoDB süresi dolan cezaları kontrol eden döngü
@@ -356,39 +358,42 @@ client.on("messageDelete", message => {
     });
 });
 
-client.on("messageCreate", async (message) => { // <--- Buraya 'async' gelmeli
-    if (!message.guild || message.author.bot || !message.content.startsWith(prefix)) return;
+client.on("messageCreate", async (message) => {
+    if (!message.member) return;
+    if (!message.guild || message.author.bot) return;
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const cmd = args.shift()?.toLowerCase();
     const member = message.member;
-    const isYonetici = member.permissions.has(PermissionsBitField.Flags.Administrator);
+const isAdmin =
+    member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+    member.permissions.has(PermissionsBitField.Flags.ManageMessages);
+
+const isYonetici = isAdmin;
     const isSahip = message.author.id === OZEL_SAHIP_ID;
 
-
 // ================= GUARD SİSTEMİ =================
-const settings = await getGuardSettings(msg.guild.id);
 
-const isYonetici =
-    msg.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-    msg.member.permissions.has(PermissionsBitField.Flags.ManageMessages);
+const settings = await getGuardSettings(message.guild.id) || {
+    kufur: false,
+    link: false,
+    spam: false,
+    yoneticiEngel: false
+};
 
-// yönetici engel kapalıysa adminler muaf
-const dokunulmaz = isYonetici && !settings.yoneticiEngel;
+// yönetici engel kapalıysa yöneticiler muaf
+const dokunulmaz = isAdmin && !settings.yoneticiEngel;
 
 if (!dokunulmaz) {
-
     let yasakli = false;
     let sebep = "";
 
+    const content = filtreleGelismiş(message.content);
+    const kelimeler = content.split(/\s+/);
+
     // ================= KÜFÜR =================
     if (settings.kufur) {
-        const temiz = filtreleGelismiş(msg.content);
-        if (
-            KUFUR_LISTESI.some(k =>
-                temiz.includes(filtreleGelismiş(k))
-            )
-        ) {
+        if (KUFUR_LISTESI.some(k =>
+            kelimeler.includes(filtreleGelismiş(k))
+        )) {
             yasakli = true;
             sebep = "Küfür";
         }
@@ -396,7 +401,7 @@ if (!dokunulmaz) {
 
     // ================= LINK =================
     if (!yasakli && settings.link) {
-        if (/(https?:\/\/|www\.|discord\.gg|discord\.com\/invite)/gi.test(msg.content)) {
+        if (/(https?:\/\/|www\.|discord\.gg|discord\.com\/invite)/gi.test(message.content)) {
             yasakli = true;
             sebep = "Reklam / Link";
         }
@@ -404,7 +409,7 @@ if (!dokunulmaz) {
 
     // ================= SPAM =================
     if (!yasakli && settings.spam) {
-        if (msg.content.length > 800) {
+        if (message.content.length > 800) {
             yasakli = true;
             sebep = "Spam";
         }
@@ -412,51 +417,53 @@ if (!dokunulmaz) {
 
     // ================= CEZA =================
     if (yasakli) {
-        await msg.delete().catch(() => {});
+        await message.delete().catch(() => {});
 
         let data = await GuardUser.findOne({
-            guildId: msg.guild.id,
-            userId: msg.author.id
+            guildId: message.guild.id,
+            userId: message.author.id
         });
 
         if (!data) {
             data = await GuardUser.create({
-                guildId: msg.guild.id,
-                userId: msg.author.id
+                guildId: message.guild.id,
+                userId: message.author.id
             });
         }
 
-        // 🔥 İHLAL SAYISI SINIRSIZ ARTAR
-        data.ihlalSayisi++;
+        data.ihlalSayisi += 1;
         data.sonIhlal = new Date();
         await data.save();
 
-        // ⏱️ CEZA 10’A KADAR HESAPLANIR
         const cezaSure = getTimeoutSure(
-            data.ihlalSayisi >= 10 ? 10 : data.ihlalSayisi
+            Math.min(data.ihlalSayisi, 10)
         );
 
         if (cezaSure > 0) {
-            await msg.member.timeout(
+            await member.timeout(
                 cezaSure,
                 `Guard İhlali: ${sebep}`
             ).catch(() => {});
         }
 
-        msg.channel.send(
-            `🚫 ${msg.author}\n` +
+        message.channel.send(
+            `🚫 ${message.author}\n` +
             `📌 **Sebep:** ${sebep}\n` +
             `🛡️ **Toplam Guard İhlali:** ${data.ihlalSayisi}`
-        ).then(m => setTimeout(() => m.delete(), 6000));
+        ).then(m => setTimeout(() => m.delete().catch(() => {}), 6000));
 
         return;
     }
 }
 
 
-    // ==========================================
-    // BAN KOMUTU
-    // ==========================================
+    // ================= KOMUT KISMI =================
+    if (!message.content.startsWith(prefix)) return;
+
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const cmd = args.shift()?.toLowerCase();
+
+
     if (cmd === "ban") {
         if (!member.roles.cache.has(ROLES.BAN_YETKILI) && !isYonetici && !isSahip) return message.reply("❌ Yetkin yok.");
         const target = await getMember(message.guild, args[0]);
@@ -1028,140 +1035,195 @@ if (cmd === "sicil" || cmd === "bak") {
         message.reply("🔊 Bağlandım.");
     }
 });
-// İNTERACTİONCREATE BÖLÜMÜ
-client.on("interactionCreate", async interaction => {
-    if (!interaction.isButton()) return;
-    if (!interaction.customId.startsWith("guard_")) return;
-
-    if (!interaction.member.permissions.has(
-        PermissionsBitField.Flags.Administrator
-    )) {
-        return interaction.reply({
-            content: "❌ Yetkin yok.",
-            ephemeral: true
-        });
-    }
-
-    const c = await getGuardSettings(interaction.guildId);
-
-    if (interaction.customId === "guard_kufur") c.kufur = !c.kufur;
-    if (interaction.customId === "guard_link") c.link = !c.link;
-    if (interaction.customId === "guard_spam") c.spam = !c.spam;
-    if (interaction.customId === "guard_yonetici") c.yoneticiEngel = !c.yoneticiEngel;
-
-    await c.save();
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId("guard_kufur")
-            .setLabel(`Küfür: ${c.kufur ? "AÇIK" : "KAPALI"}`)
-            .setStyle(c.kufur ? ButtonStyle.Success : ButtonStyle.Danger),
-
-        new ButtonBuilder()
-            .setCustomId("guard_link")
-            .setLabel(`Link: ${c.link ? "AÇIK" : "KAPALI"}`)
-            .setStyle(c.link ? ButtonStyle.Success : ButtonStyle.Danger),
-
-        new ButtonBuilder()
-            .setCustomId("guard_spam")
-            .setLabel(`Spam: ${c.spam ? "AÇIK" : "KAPALI"}`)
-            .setStyle(c.spam ? ButtonStyle.Success : ButtonStyle.Danger),
-
-        new ButtonBuilder()
-            .setCustomId("guard_yonetici")
-            .setLabel(`Yön. Engel: ${c.yoneticiEngel ? "AÇIK" : "KAPALI"}`)
-            .setStyle(c.yoneticiEngel ? ButtonStyle.Success : ButtonStyle.Danger)
-    );
-
-    await interaction.update({ components: [row] });
-});
 
 
 // ==========================================
 // 5. ETKİLEŞİM YÖNETİMİ (MONGODB)
 // ==========================================
 client.on("interactionCreate", async interaction => {
+
+    // =========================
+    // 🛡️ GUARD BUTON SİSTEMİ
+    // =========================
+    if (interaction.isButton() && interaction.customId.startsWith("guard_")) {
+
+        if (!interaction.member.permissions.has(
+            PermissionsBitField.Flags.Administrator
+        )) {
+            return interaction.reply({
+                content: "❌ Yetkin yok.",
+                ephemeral: true
+            });
+        }
+
+        const c = await getGuardSettings(interaction.guildId);
+
+        if (interaction.customId === "guard_kufur") c.kufur = !c.kufur;
+        if (interaction.customId === "guard_link") c.link = !c.link;
+        if (interaction.customId === "guard_spam") c.spam = !c.spam;
+        if (interaction.customId === "guard_yonetici") c.yoneticiEngel = !c.yoneticiEngel;
+
+        await c.save();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId("guard_kufur")
+                .setLabel(`Küfür: ${c.kufur ? "AÇIK" : "KAPALI"}`)
+                .setStyle(c.kufur ? ButtonStyle.Success : ButtonStyle.Danger),
+
+            new ButtonBuilder()
+                .setCustomId("guard_link")
+                .setLabel(`Link: ${c.link ? "AÇIK" : "KAPALI"}`)
+                .setStyle(c.link ? ButtonStyle.Success : ButtonStyle.Danger),
+
+            new ButtonBuilder()
+                .setCustomId("guard_spam")
+                .setLabel(`Spam: ${c.spam ? "AÇIK" : "KAPALI"}`)
+                .setStyle(c.spam ? ButtonStyle.Success : ButtonStyle.Danger),
+
+            new ButtonBuilder()
+                .setCustomId("guard_yonetici")
+                .setLabel(`Yön. Engel: ${c.yoneticiEngel ? "AÇIK" : "KAPALI"}`)
+                .setStyle(c.yoneticiEngel ? ButtonStyle.Success : ButtonStyle.Danger)
+        );
+
+        return interaction.update({ components: [row] });
+    }
+
+    // =========================
+    // 📝 NOT / SICIL BUTONLARI
+    // =========================
     if (interaction.isButton()) {
         const parts = interaction.customId.split("_");
-        if (interaction.customId === "btn_kapat") return interaction.message.delete().catch(() => {});
+
+        if (interaction.customId === "btn_kapat")
+            return interaction.message.delete().catch(() => {});
 
         if (parts[0] !== "btn" || parts[1] !== "not") return;
+
         const operasyon = parts[2];
         const targetId = parts[3];
 
-        const ozelYetkili = interaction.user.id === NOT_YETKILISI_ID || 
-                           interaction.member.roles.cache.has(NOT_YETKILISI_ID) || 
-                           interaction.user.id === OZEL_SAHIP_ID || 
-                           interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
+        const ozelYetkili =
+            interaction.user.id === NOT_YETKILISI_ID ||
+            interaction.member.roles.cache.has(NOT_YETKILISI_ID) ||
+            interaction.user.id === OZEL_SAHIP_ID ||
+            interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
 
-        if (!ozelYetkili) return interaction.reply({ content: "❌ Sadece sicil yetkilileri.", flags: MessageFlags.Ephemeral });
+        if (!ozelYetkili)
+            return interaction.reply({
+                content: "❌ Sadece sicil yetkilileri.",
+                ephemeral: true
+            });
 
         if (operasyon === "ekle") {
-            const modal = new ModalBuilder().setCustomId(`modal_not_kayit_${targetId}`).setTitle("Kullanıcıya Not Ekle");
-            const notInput = new TextInputBuilder().setCustomId("not_icerik").setLabel("Notunuzu yazın").setStyle(TextInputStyle.Paragraph).setRequired(true);
+            const modal = new ModalBuilder()
+                .setCustomId(`modal_not_kayit_${targetId}`)
+                .setTitle("Kullanıcıya Not Ekle");
+
+            const notInput = new TextInputBuilder()
+                .setCustomId("not_icerik")
+                .setLabel("Notunuzu yazın")
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
             modal.addComponents(new ActionRowBuilder().addComponents(notInput));
-            await interaction.showModal(modal);
+            return interaction.showModal(modal);
         }
 
         if (operasyon === "oku") {
             const data = await UserNote.findOne({ userID: targetId });
             const notlar = data ? data.notes : [];
-            let notMetni = notlar.length > 0 ? notlar.map((n, i) => `**${i + 1}.** \`${n.tarih}\` (<@${n.yazar}>): ${n.icerik}`).join("\n\n") : "📜 Not yok.";
-            
-            if (notMetni.length > 4000) notMetni = notMetni.substring(0, 4000) + "...";
-            const notEmbed = new EmbedBuilder().setTitle(`📂 <@${targetId}> - Notlar`).setColor("Blurple").setDescription(notMetni);
-            await interaction.reply({ embeds: [notEmbed], flags: MessageFlags.Ephemeral });
+
+            let notMetni = notlar.length
+                ? notlar.map((n, i) =>
+                    `**${i + 1}.** \`${n.tarih}\` (<@${n.yazar}>): ${n.icerik}`
+                  ).join("\n\n")
+                : "📜 Not yok.";
+
+            if (notMetni.length > 4000)
+                notMetni = notMetni.slice(0, 4000) + "...";
+
+            const embed = new EmbedBuilder()
+                .setTitle(`📂 <@${targetId}> - Notlar`)
+                .setColor("Blurple")
+                .setDescription(notMetni);
+
+            return interaction.reply({ embeds: [embed], ephemeral: true });
         }
 
         if (operasyon === "sil") {
             const data = await UserNote.findOne({ userID: targetId });
             const notlar = data ? data.notes : [];
-            if (notlar.length === 0) return interaction.reply({ content: "Silinecek not yok.", flags: MessageFlags.Ephemeral });
 
-            const selectMenu = new StringSelectMenuBuilder().setCustomId(`select_not_sil_${targetId}`).setPlaceholder('Silinecek notu seçin...');
-            notlar.slice(-25).map((n, index) => { // Discord select menü sınırı 25'tir
-                selectMenu.addOptions(new StringSelectMenuOptionBuilder()
-                    .setLabel(`${index + 1}. Not (${n.tarih})`)
-                    .setDescription(n.icerik.substring(0, 50) + "...")
-                    .setValue(index.toString())
-                );
+            if (!notlar.length)
+                return interaction.reply({ content: "Silinecek not yok.", ephemeral: true });
+
+            const menu = new StringSelectMenuBuilder()
+                .setCustomId(`select_not_sil_${targetId}`)
+                .setPlaceholder("Silinecek notu seçin");
+
+            notlar.slice(-25).forEach((n, i) => {
+                menu.addOptions({
+                    label: `${i + 1}. Not (${n.tarih})`,
+                    description: n.icerik.slice(0, 50),
+                    value: i.toString()
+                });
             });
 
-            await interaction.reply({ content: "🗑️ Silinecek notu seçin (Son 25 not listelenir):", components: [new ActionRowBuilder().addComponents(selectMenu)], flags: MessageFlags.Ephemeral });
+            return interaction.reply({
+                content: "🗑️ Silinecek notu seçin:",
+                components: [new ActionRowBuilder().addComponents(menu)],
+                ephemeral: true
+            });
         }
     }
 
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("modal_not_kayit")) {
+    // =========================
+    // 🧾 MODAL – NOT EKLEME
+    // =========================
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("modal_not_kayit_")) {
         const targetId = interaction.customId.split("_")[3];
         const icerik = interaction.fields.getTextInputValue("not_icerik");
 
         await UserNote.findOneAndUpdate(
             { userID: targetId },
-            { 
-                $push: { 
-                    notes: { yazar: interaction.user.id, icerik: icerik, tarih: new Date().toLocaleDateString("tr-TR") } 
-                } 
+            {
+                $push: {
+                    notes: {
+                        yazar: interaction.user.id,
+                        icerik,
+                        tarih: new Date().toLocaleDateString("tr-TR")
+                    }
+                }
             },
             { upsert: true }
         );
 
-        await interaction.reply({ content: `✅ **Not sicile eklendi!**`, flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "✅ Not sicile eklendi.", ephemeral: true });
     }
 
+    // =========================
+    // 🗑️ SELECT MENU – NOT SİL
+    // =========================
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith("select_not_sil_")) {
         const targetId = interaction.customId.split("_")[3];
-        const secilenIndex = parseInt(interaction.values[0]);
+        const index = parseInt(interaction.values[0]);
 
         const data = await UserNote.findOne({ userID: targetId });
-        if (data && data.notes[secilenIndex]) {
-            data.notes.splice(secilenIndex, 1);
-            await data.save();
-            await interaction.update({ content: `✅ **Not başarıyla silindi!**`, components: [], embeds: [] });
-        } else { 
-            await interaction.update({ content: "❌ Hata oluştu veya not bulunamadı.", components: [] }); 
-        }
+        if (!data || !data.notes[index])
+            return interaction.update({ content: "❌ Not bulunamadı.", components: [] });
+
+        data.notes.splice(index, 1);
+        await data.save();
+
+        return interaction.update({
+            content: "✅ Not silindi.",
+            components: []
+        });
     }
 });
+
 
 // ==========================================
 // 6. EXPRESS SERVER & BOT BASLATMA
@@ -1199,6 +1261,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
