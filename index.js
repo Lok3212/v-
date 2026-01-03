@@ -13,7 +13,14 @@ const {
     StringSelectMenuOptionBuilder,
 } = require("discord.js");
 
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require("@discordjs/voice");
+const { 
+    joinVoiceChannel, 
+    createAudioPlayer, 
+    createAudioResource, 
+    AudioPlayerStatus, 
+    NoSubscriberBehavior, 
+    StreamType 
+} = require("@discordjs/voice");
 const ytdl = require("ytdl-core");
 
 const players = new Map(); // guildId -> AudioPlayer
@@ -30,23 +37,32 @@ async function playMusic(message, url) {
             filter: "audioonly",
             quality: "highestaudio",
             highWaterMark: 1 << 25, // buffer problemi için
+            dlChunkSize: 0, // chunk problemi çözmek için
         });
     } catch (err) {
         console.error("❌ YouTube stream hatası:", err);
         return message.reply("❌ Videoya erişilemiyor veya YouTube engelledi.");
     }
 
-    const resource = createAudioResource(stream);
+    // Stream tipi ekledik
+    const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
 
     let player = players.get(message.guild.id);
     if (!player) {
         player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+
+        // Hataları logla
+        player.on("error", error => {
+            console.error(`Audio player hatası: ${error.message}`);
+            message.channel.send("❌ Müzik oynatılırken bir hata oluştu.");
+        });
+
         players.set(message.guild.id, player);
     }
 
     const connection = joinVoiceChannel({
         channelId: channel.id,
-        guildId: channel.guild.id,
+        guildId: message.guild.id,
         adapterCreator: channel.guild.voiceAdapterCreator,
         selfDeaf: true
     });
@@ -71,6 +87,7 @@ function stopMusic(message) {
     message.reply("⏹️ Müzik durduruldu.");
 }
 
+module.exports = { playMusic, stopMusic };
 
 const mongoose = require('mongoose');
 
@@ -1340,6 +1357,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
