@@ -1099,25 +1099,22 @@ if (cmd === "sicil" || cmd === "bak") {
     }
 
     // DİĞER KOMUTLAR (EVLEN, BOŞAN, SİL, KATIL, SICILTEMIZLE) DEĞİŞMEDEN DEVAM EDER...
-// [KATIL]
-if (cmd === "katıl") {
-    if (!isYonetici && !isSahip)
-        return message.reply("❌ Sadece yönetici.");
+// ================= MÜZİK KOMUTLARI =================
+if (!message.content.startsWith(prefix)) return;
+const args = message.content.slice(prefix.length).trim().split(/ +/);
+const cmd = args.shift()?.toLowerCase();
 
-    const channel = message.member.voice.channel;
-    if (!channel)
-        return message.reply("❌ Ses kanalında değilsin.");
+if (cmd === "çal") {
+    const url = args[0];
+    if (!url) return message.reply("❌ Lütfen bir YouTube linki gir.");
 
-    joinVoiceChannel({
-        channelId: channel.id,
-        guildId: channel.guild.id,
-        adapterCreator: channel.guild.voiceAdapterCreator,
-        selfDeaf: true,
-        selfMute: false
-    });
-
-    message.reply("🔊 Bağlandım.");
+    playMusic(message, url); // senin daha önce tanımladığın playMusic fonksiyonunu kullanıyoruz
 }
+
+if (cmd === "dur") {
+    stopMusic(message); // senin daha önce tanımladığın stopMusic fonksiyonunu kullanıyoruz
+}
+
 });
 
 
@@ -1346,6 +1343,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
