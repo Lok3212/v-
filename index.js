@@ -1048,7 +1048,7 @@ if (cmd === "sicil" || cmd === "bak") {
 
         message.channel.send({ embeds: [helpEmb] });
     }
-if (command === "çal") {
+if (cmd === "çal") {
     const url = args[0];
     if (!url) return message.reply("❌ Bir MP3 URL girmen gerekiyor!");
 
@@ -1096,7 +1096,7 @@ if (command === "çal") {
     }
 }
 
-if (command === "dur") {
+if (cmd === "dur") {
     const player = players.get(message.guild.id);
     if (!player) return message.reply("❌ Çalan müzik yok.");
     player.stop();
@@ -1332,6 +1332,7 @@ process.on("uncaughtException", (err, origin) => {
 process.on('uncaughtExceptionMonitor', (err, origin) => {
     console.log('⚠️ [Hata Yakalandı] - Exception Monitor:', err);
 });
+
 
 
 
