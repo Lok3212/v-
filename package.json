@@ -1,7 +1,7 @@
 {
   "name": "discord-ceza-sistemi",
   "version": "1.0.0",
-  "description": "Discord.js v14 gelişmiş ceza, sicil ve rozet sistemi",
+  "description": "Discord.js v14 gelişmiş ceza, sicil, rozet ve müzik sistemi",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
